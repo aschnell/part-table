@@ -19,6 +19,8 @@ const uuid_t gpt_bios_boot_type_guid = { 0x21, 0x68, 0x61, 0x48, 0x64, 0x49, 0x6
     0x74, 0x4e, 0x65, 0x65, 0x64, 0x45, 0x46, 0x49 };
 const uuid_t gpt_efi_system_type_guid = { 0xc1, 0x2a, 0x73, 0x28, 0xf8, 0x1f, 0x11, 0xd2,
     0xba, 0x4b, 0x00, 0xa0, 0xc9, 0x3e, 0xc9, 0x3b };
+const uuid_t gpt_intel_rst_type_guid = { 0xd3, 0xbf, 0xe2, 0xde, 0x3d, 0xaf, 0x11, 0xdf,
+    0xba, 0x40, 0xe3, 0xa5, 0x56, 0xd8, 0x95, 0x93 };
 const uuid_t gpt_linux_data_type_guid = { 0x0f, 0xc6, 0x3d, 0xaf, 0x84, 0x83, 0x47, 0x72,
     0x8e, 0x79, 0x3d, 0x69, 0xd8, 0x47, 0x7d, 0xe4 };
 const uuid_t gpt_linux_home_type_guid = { 0x93, 0x3a, 0xc7, 0xe1, 0x2e, 0xb4, 0x4f, 0x13,
@@ -27,8 +29,14 @@ const uuid_t gpt_linux_lvm_type_guid = { 0xe6, 0xd6, 0xd3, 0x79, 0xf5, 0x07, 0x4
     0xa2, 0x3c, 0x23, 0x8f, 0x2a, 0x3d, 0xf9, 0x28 };
 const uuid_t gpt_linux_raid_type_guid = { 0xa1, 0x9d, 0x88, 0x0f, 0x05, 0xfc, 0x4d, 0x3b,
     0xa0, 0x06, 0x74, 0x3f, 0x0f, 0x84, 0x91, 0x1e };
+const uuid_t gpt_linux_swap_type_guid = { 0x06, 0x57, 0xfd, 0x6d, 0xa4, 0xab, 0x43, 0xc4,
+    0x84, 0xe5, 0x09, 0x33, 0xc8, 0x4b, 0x4f, 0x4f };
 const uuid_t gpt_prep_type_guid = { 0x9e, 0x1a, 0x2d, 0x38, 0xc6, 0x12, 0x43, 0x16,
     0xaa, 0x26, 0x8b, 0x49, 0x52, 0x1e, 0x5a, 0x8b };
+const uuid_t gpt_windows_data_type_guid = { 0xeb, 0xd0, 0xa0, 0xa2, 0xb9, 0xe5, 0x44, 0x33,
+    0x87, 0xc0, 0x68, 0xb6, 0xb7, 0x26, 0x99, 0xc7 };
+const uuid_t gpt_windows_recovery_type_guid = { 0xde, 0x94, 0xbb, 0xa4, 0x06, 0xd1, 0x4d, 0x40,
+    0xa1, 0x6a, 0xbf, 0xd5, 0x01, 0x79, 0xd6, 0xac };
 
 
 typedef struct
@@ -83,16 +91,20 @@ static const gpt_name_type_guid_mapping_t gpt_name_type_guid_mapping[] =
 {
     { "bios-boot", &gpt_bios_boot_type_guid },
     { "efi-system", &gpt_efi_system_type_guid },
+    { "intel-rst", &gpt_intel_rst_type_guid },
     { "linux-data", &gpt_linux_data_type_guid },
     { "linux-home", &gpt_linux_home_type_guid },
     { "linux-lvm", &gpt_linux_lvm_type_guid },
     { "linux-raid", &gpt_linux_raid_type_guid },
+    { "linux-swap", &gpt_linux_swap_type_guid },
     { "prep", &gpt_prep_type_guid },
+    { "windows-data", &gpt_windows_data_type_guid },
+    { "windows-recovery", &gpt_windows_recovery_type_guid },
 };
 
 
 const gpt_name_type_guid_mapping_t*
-gpt_find_name_type_guid_mapping(const uuid_t type_guid)
+gpt_find_name_type_guid_mapping_by_type_guid(const uuid_t type_guid)
 {
     int n = sizeof(gpt_name_type_guid_mapping) / sizeof(gpt_name_type_guid_mapping[0]);
 
@@ -103,6 +115,52 @@ gpt_find_name_type_guid_mapping(const uuid_t type_guid)
     return NULL;
 }
 
+
+const gpt_name_type_guid_mapping_t*
+gpt_find_name_type_guid_mapping_by_name(const char* name)
+{
+    int n = sizeof(gpt_name_type_guid_mapping) / sizeof(gpt_name_type_guid_mapping[0]);
+
+    for (int i = 0; i < n; ++i)
+	if (strcmp(name, gpt_name_type_guid_mapping[i].name) == 0)
+	    return &gpt_name_type_guid_mapping[i];
+
+    return NULL;
+}
+
+
+static const gpt_name_attribute_mapping_t gpt_name_attribute_mapping[] =
+{
+    { "required", 0 },
+    { "no-block-io", 1 },
+    { "legacy-boot", 2 },
+};
+
+
+const gpt_name_attribute_mapping_t*
+gpt_find_name_attribute_by_bit(int bit)
+{
+    int n = sizeof(gpt_name_attribute_mapping) / sizeof(gpt_name_attribute_mapping[0]);
+
+    for (int i = 0; i < n; ++i)
+	if (bit == gpt_name_attribute_mapping[i].bit)
+	    return &gpt_name_attribute_mapping[i];
+
+    return NULL;
+}
+
+
+const gpt_name_attribute_mapping_t*
+gpt_find_name_attribute_by_name(const char* name)
+{
+    int n = sizeof(gpt_name_attribute_mapping) / sizeof(gpt_name_attribute_mapping[0]);
+
+    for (int i = 0; i < n; ++i)
+	if (strcmp(name, gpt_name_attribute_mapping[i].name) == 0)
+	    return &gpt_name_attribute_mapping[i];
+
+    return NULL;
+}
 
 
 static gpt_partition_entry_t*
@@ -232,20 +290,20 @@ gpt_read(disk_t* disk)
 
 
 char*
-gpt_name(const gpt_partition_entry_t* partition)
+gpt_get_name(const gpt_partition_entry_t* partition)
 {
     iconv_t cd = iconv_open(nl_langinfo(CODESET), "UCS-2LE");
     if (cd == (iconv_t) -1)
 	error("iconv_open failed");
 
     char* inbuf = (char*) &partition->name;
-    size_t inbuf_size = 36 * 2;
+    size_t inbuf_size = 2 * 36;
 
     char buffer[256];
     char* outbuf = buffer;
     size_t outbuf_size = sizeof(buffer);
 
-    if (iconv(cd, &inbuf, &inbuf_size, &outbuf, &outbuf_size) == -1)
+    if (iconv(cd, &inbuf, &inbuf_size, &outbuf, &outbuf_size) == (size_t) -1)
 	error("iconv failed");
 
     *outbuf = 0;
@@ -253,6 +311,33 @@ gpt_name(const gpt_partition_entry_t* partition)
     iconv_close(cd);
 
     return strdup(buffer);
+}
+
+
+void
+gpt_set_name(gpt_t* gpt, int num, const char* name)
+{
+    gpt_partition_entry_t* partition = gpt_partition(gpt, num);
+
+    if (uuid_is_null(partition->type_guid))
+	error("partition slot unused");
+
+    memset(partition->name, 0, 2 * 36);
+
+    iconv_t cd = iconv_open("UCS-2LE", nl_langinfo(CODESET));
+    if (cd == (iconv_t) -1)
+	error("iconv_open failed");
+
+    char* inbuf = strdup(name);	// TODO
+    size_t inbuf_size = strlen(name);
+
+    char* outbuf = (char*) &partition->name;
+    size_t outbuf_size = 2 * 36;
+
+    if (iconv(cd, &inbuf, &inbuf_size, &outbuf, &outbuf_size) == (size_t) -1)
+	error("iconv failed");
+
+    iconv_close(cd);
 }
 
 
@@ -310,7 +395,7 @@ gpt_print(const gpt_t* gpt)
 
 	    char* tmp2 = uuid_decode(tmp1);
 
-	    const gpt_name_type_guid_mapping_t* p = gpt_find_name_type_guid_mapping(tmp1);
+	    const gpt_name_type_guid_mapping_t* p = gpt_find_name_type_guid_mapping_by_type_guid(tmp1);
 	    if (p)
 		printf("  type-guid: %s (%s)\n", tmp2, p->name);
 	    else
@@ -329,10 +414,37 @@ gpt_print(const gpt_t* gpt)
 	    free(tmp2);
 	}
 
-	printf("  attributes: 0x%016lx\n", le64toh(partition->attributes));
+	{
+	    uint64_t attributes = le64toh(partition->attributes);
+
+	    printf("  attributes: 0x%016lx", attributes);
+
+	    int first = 1;
+
+	    for (int bit = 0; bit < 64; ++bit)
+	    {
+		if (attributes & (1ULL << bit))
+		{
+		    const gpt_name_attribute_mapping_t* p = gpt_find_name_attribute_by_bit(bit);
+		    if (p)
+		    {
+			if (first)
+			    printf(" (%s", p->name);
+			else
+			    printf(", %s", p->name);
+			first = 0;
+		    }
+		}
+	    }
+
+	    if (!first)
+		printf(")\n");
+	    else
+		printf("\n");
+	}
 
 	{
-	    char* tmp = gpt_name(partition);
+	    char* tmp = gpt_get_name(partition);
 	    printf("  name: %s\n", tmp);
 	    free(tmp);
 	}
@@ -411,7 +523,7 @@ gpt_json(const gpt_t* gpt)
 	}
 
 	{
-	    char* tmp = gpt_name(partition);
+	    char* tmp = gpt_get_name(partition);
 	    if (strlen(tmp) != 0)
 		json_object_object_add(json_partition, "name", json_object_new_string(tmp));
 	    free(tmp);
@@ -429,9 +541,6 @@ gpt_json(const gpt_t* gpt)
 
     json_object_put(json_root);
 }
-
-
-
 
 
 void
@@ -503,4 +612,77 @@ gpt_remove_partition(gpt_t* gpt, int num)
 	error("partition slot already unused");
 
     memset(partition, 0, gpt->partition_entry_size);
+}
+
+
+uint64_t
+gpt_get_start(const gpt_t* gpt, int num)
+{
+    const gpt_partition_entry_t* partition = gpt_const_partition(gpt, num);
+
+    uint64_t start = le64toh(partition->first_lba);
+
+    return start;
+}
+
+
+uint64_t
+gpt_get_size(const gpt_t* gpt, int num)
+{
+    const gpt_partition_entry_t* partition = gpt_const_partition(gpt, num);
+
+    uint64_t start = le64toh(partition->first_lba);
+    uint64_t end = le64toh(partition->last_lba);
+
+    return end - start + 1;
+}
+
+
+void
+gpt_set_size(gpt_t* gpt, int num, uint64_t size)
+{
+    gpt_partition_entry_t* partition = gpt_partition(gpt, num);
+
+    uint64_t start = le64toh(partition->first_lba);
+    uint64_t end = start + size - 1;
+
+    partition->last_lba = htole64(end);
+}
+
+
+void
+gpt_set_type_guid(gpt_t* gpt, int num, const uuid_t type_guid)
+{
+    gpt_partition_entry_t* partition = gpt_partition(gpt, num);
+
+    if (uuid_is_null(partition->type_guid))
+	error("partition slot unused");
+
+    uuid_copy(partition->type_guid, type_guid);
+    swap_uuid(partition->type_guid);
+}
+
+
+void
+gpt_set_guid(gpt_t* gpt, int num, const uuid_t guid)
+{
+    gpt_partition_entry_t* partition = gpt_partition(gpt, num);
+
+    if (uuid_is_null(partition->type_guid))
+	error("partition slot unused");
+
+    uuid_copy(partition->partition_guid, guid);
+    swap_uuid(partition->partition_guid);
+}
+
+
+void
+gpt_set_attributes(gpt_t* gpt, int num, uint64_t attributes)
+{
+    gpt_partition_entry_t* partition = gpt_partition(gpt, num);
+
+    if (uuid_is_null(partition->type_guid))
+	error("partition slot unused");
+
+    partition->attributes = attributes;
 }

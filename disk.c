@@ -30,13 +30,13 @@ struct disk_s
 
 
 disk_t*
-disk_new(int flags)
+disk_new(const char* device, int flags)
 {
     disk_t* disk = malloc(sizeof(disk_t));
     if (!disk)
 	error("malloc failed");
 
-    disk->fd = open("/dev/ram0", flags | O_LARGEFILE | O_CLOEXEC);
+    disk->fd = open(device, flags | O_LARGEFILE | O_CLOEXEC);
     if (disk->fd < 0)
 	error("open failed");
 

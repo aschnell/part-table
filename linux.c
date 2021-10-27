@@ -207,6 +207,7 @@ dm_create_partition(disk_t* disk, int num, size_t start, size_t length)
     dm_task_update_nodes();
     dm_task_destroy(task);
 
+    free(params);
     free(part_name);
     free(part_uuid);
 }
@@ -215,6 +216,39 @@ dm_create_partition(disk_t* disk, int num, size_t start, size_t length)
 static void
 dm_resize_partition(disk_t* disk, int num, size_t start, size_t length)
 {
+    const char* disk_name = NULL;
+
+    dm_haha(disk, &disk_name, NULL);
+
+    struct dm_task* task = dm_task_create(DM_DEVICE_RELOAD);
+    if (!task)
+	error("dm_task_create failed");
+
+    char* part_name = sformat("%s-part%d", disk_name, num);
+    printf("part-name: %s\n", part_name);
+    dm_task_set_name(task, part_name);
+
+    char* params = sformat("%d:%d %zd", disk_major(disk), disk_minor(disk), start / 512);
+    dm_task_add_target(task, 0, length / 512, "linear", params);
+
+    if (!dm_task_run(task))
+	error("dm_task_run failed");
+
+    dm_task_destroy(task);
+
+    task = dm_task_create(DM_DEVICE_RESUME);
+    if (!task)
+	error("dm_task_create failed");
+
+    dm_task_set_name(task, part_name);
+
+    dm_task_run_and_wait(task);
+
+    dm_task_update_nodes();
+    dm_task_destroy(task);
+
+    free(params);
+    free(part_name);
 }
 
 

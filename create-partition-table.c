@@ -1,22 +1,17 @@
 
-// gcc -o create-partition-table create-partition-table.c mbr.c gpt.c disk.c linux.c utils.c -Wall -O2 -luuid -lblkid -ldevmapper -ljson-c
-
 
 #include <fcntl.h>
-#include <locale.h>
 
 #include "disk.h"
 #include "mbr.h"
 #include "gpt.h"
-#include "linux.h"
+#include "part-table.h"
 
 
-int
-main()
+static int
+doit()
 {
-    setlocale(LC_ALL, "");
-
-    disk_t* disk = disk_new(O_RDWR);
+    disk_t* disk = disk_new(device, O_RDWR);
 
 #if 0
 
@@ -33,4 +28,13 @@ main()
 #endif
 
     disk_free(disk);
+
+    return 1;
+}
+
+
+int
+cmd_create_partition_table(int argc, char** argv)
+{
+    return doit();
 }

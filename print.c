@@ -1,21 +1,21 @@
 
-// gcc -o print print.c mbr.c gpt.c disk.c utils.c -Wall -O2 -luuid -lblkid -ldevmapper -ljson-c
-
 
 #include <fcntl.h>
-#include <locale.h>
+#include <getopt.h>
 
 #include "disk.h"
 #include "mbr.h"
 #include "gpt.h"
+#include "part-table.h"
 
 
-int
-main()
+static int json = 0;
+
+
+static int
+doit()
 {
-    setlocale(LC_ALL, "");
-
-    disk_t* disk = disk_new(O_RDONLY);
+    disk_t* disk = disk_new(device, O_RDONLY);
 
     mbr_t* mbr = mbr_read(disk);
 
@@ -25,10 +25,42 @@ main()
 
     gpt_t* gpt = gpt_read(disk);
 
-    gpt_print(gpt);
-    gpt_json(gpt);
+    if (!json)
+	gpt_print(gpt);
+    else
+	gpt_json(gpt);
 
     gpt_free(gpt);
 
     disk_free(disk);
+
+    return 1;
+}
+
+
+int
+cmd_print(int argc, char** argv)
+{
+    static const struct option long_options[] = {
+	{ "json", no_argument, NULL, 'j' },
+	{ NULL, 0, NULL, 0}
+    };
+
+    while (1)
+    {
+	int c = getopt_long(argc, argv, "+j", long_options, NULL);
+	if (c < 0)
+	    break;
+
+	switch (c)
+	{
+	    case 'j':
+	    {
+		json = 1;
+	    }
+	    break;
+	}
+    }
+
+    return doit();
 }

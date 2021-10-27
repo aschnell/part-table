@@ -9,7 +9,7 @@ typedef struct disk_s disk_t;
 
 
 disk_t*
-disk_new(int flags);
+disk_new(const char* name, int flags);
 
 void
 disk_free(disk_t* disk);

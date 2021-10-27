@@ -15,7 +15,6 @@
 
 
 static int number = 0;
-static uint64_t start = 0;
 static uint64_t size = 0;
 static uuid_t type_guid;
 static uuid_t guid;
@@ -34,15 +33,7 @@ doit()
 
     mbr_t* mbr = mbr_read(disk);
 
-    mbr_create_partition(mbr, number, start, size);
-
-    if (discard)
-	linux_discard(disk, start * sector_size, size * sector_size);
-
-    if (wipe_signatures)
-	linux_wipe_signatures(disk, start * sector_size, size * sector_size);
-
-    linux_create_partition(disk, number, start * sector_size, size * sector_size);
+    linux_resize_partition(disk, number, start * sector_size, size * sector_size);
 
     mbr_write(mbr, disk);
 
@@ -52,15 +43,13 @@ doit()
 
     gpt_t* gpt = gpt_read(disk);
 
-    gpt_create_partition(gpt, number, start, size);
+    if (size != 0)
+    {
+	gpt_set_size(gpt, number, size);
 
-    if (discard)
-	linux_discard(disk, start * sector_size, size * sector_size);
-
-    if (wipe_signatures)
-	linux_wipe_signatures(disk, start * sector_size, size * sector_size);
-
-    linux_create_partition(disk, number, start * sector_size, size * sector_size);
+	uint64_t start = gpt_get_start(gpt, number);
+	linux_resize_partition(disk, number, start * sector_size, size * sector_size);
+    }
 
     if (!uuid_is_null(type_guid))
 	gpt_set_type_guid(gpt, number, type_guid);
@@ -87,14 +76,13 @@ doit()
 
 
 int
-cmd_create_partition(int argc, char** argv)
+cmd_modify_partition(int argc, char** argv)
 {
-    enum { OPT_START = 128, OPT_SIZE, OPT_TYPE_GUID, OPT_TYPE_GUID_NAME, OPT_GUID, OPT_ATTRIBUTES,
+    enum { OPT_SIZE = 128, OPT_TYPE_GUID, OPT_TYPE_GUID_NAME, OPT_GUID, OPT_ATTRIBUTES,
 	OPT_ATTRIBUTE_NAMES, OPT_NAME };
 
     static const struct option long_options[] = {
 	{ "number", required_argument, NULL, 'n' },
-	{ "start", required_argument, NULL, OPT_START },
 	{ "size", required_argument, NULL, OPT_SIZE },
 	{ "type-guid", required_argument, NULL, OPT_TYPE_GUID },
 	{ "type-guid-name", required_argument, NULL, OPT_TYPE_GUID_NAME },
@@ -116,16 +104,6 @@ cmd_create_partition(int argc, char** argv)
 	    case 'n':
 	    {
 		number = strtol(optarg, NULL, 0);
-	    }
-	    break;
-
-	    case OPT_START:
-	    {
-		if (parse_size(optarg, &start) != 0)
-		{
-		    fprintf(stderr, "failed to parse start\n");
-		    exit(EXIT_FAILURE);
-		}
 	    }
 	    break;
 
@@ -202,24 +180,11 @@ cmd_create_partition(int argc, char** argv)
     // TODO check optind for extra args
 
     printf("number: %d\n", number);
-    printf("start: %zd\n", start);
     printf("size: %zd\n", size);
 
     if (number == 0)
     {
 	fprintf(stderr, "number missing\n");
-	exit(EXIT_FAILURE);
-    }
-
-    if (start == 0)
-    {
-	fprintf(stderr, "start missing\n");
-	exit(EXIT_FAILURE);
-    }
-
-    if (size == 0)
-    {
-	fprintf(stderr, "size missing\n");
 	exit(EXIT_FAILURE);
     }
 

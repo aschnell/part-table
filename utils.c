@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <errno.h>
+#include <string.h>
 
 #include "utils.h"
 
@@ -114,4 +116,26 @@ chksum_crc32(const void* buf, unsigned len)
 	crc = crc_tab[(uint8_t) crc ^ *p++] ^ (crc >> 8);
 
     return crc ^ 0xffffffff;
+}
+
+
+int
+parse_size(const char* s, uint64_t* value)
+{
+    char* endptr;
+
+    errno = 0;
+
+    *value = strtoull(s, &endptr, 10);
+
+    if (errno != 0)
+	return -1;
+
+    if (endptr == s)
+	return -1;
+
+    if (strcmp(endptr, "s") != 0)
+	return -1;
+
+    return 0;
 }

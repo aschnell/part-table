@@ -12,9 +12,10 @@ static const uint16_t mbr_signature = 0xaa55;
 
 
 const uint8_t mbr_efi_system_type_id = 0xef;
-const uint8_t mbr_extended_type_id = 0x05;
 const uint8_t mbr_extended_lba_type_id = 0x0f;
+const uint8_t mbr_extended_type_id = 0x05;
 const uint8_t mbr_gpt_type_id = 0xee;
+const uint8_t mbr_intel_rst_id = 0x84;
 const uint8_t mbr_linux_lvm_type_id = 0x8e;
 const uint8_t mbr_linux_native_type_id = 0x83;
 const uint8_t mbr_linux_raid_type_id = 0xfd;
@@ -108,6 +109,7 @@ static const mbr_name_type_id_mapping_t mbr_name_type_id_mapping[] =
     { "extended", mbr_extended_type_id },
     { "extended-lba", mbr_extended_lba_type_id },
     { "gpt", mbr_gpt_type_id },
+    { "intel-rst", mbr_intel_rst_id },
     { "linux-lvm", mbr_linux_lvm_type_id },
     { "linux-raid", mbr_linux_raid_type_id },
     { "linux-swap", mbr_linux_swap_type_id },

@@ -66,7 +66,7 @@ doit()
 	gpt_set_type_guid(gpt, number, type_guid);
 
     if (!uuid_is_null(guid))
-	gpt_set_guid(gpt, number, guid);
+	gpt_set_partition_guid(gpt, number, guid);
 
     if (attributes)
 	gpt_set_attributes(gpt, number, attributes);
@@ -105,7 +105,7 @@ cmd_create_partition(int argc, char** argv)
 	{ NULL, 0, NULL, 0}
     };
 
-    while (1)
+    while (true)
     {
 	int c = getopt_long(argc, argv, "+n:", long_options, NULL);
 	if (c < 0)

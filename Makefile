@@ -4,7 +4,8 @@ TARGET = part-table
 
 SRCS = create-partition.c create-partition-table.c	\
 	disk.c gpt.c linux.c mbr.c modify-partition.c	\
-	part-table.c print.c remove-partition.c utils.c
+	part-table.c print.c remove-partition.c 	\
+	utils1.c utils2.c
 
 INCPATH =
 LIBPATH =

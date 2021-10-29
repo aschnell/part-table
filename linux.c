@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 #include <libdevmapper.h>
 #include <linux/blkpg.h>
 #include <linux/fs.h>
@@ -98,7 +99,7 @@ blkpg_create_partition(disk_t* disk, int num, size_t start, size_t length)
     partition.length = length;
 
     if (blkpg_ioctl(disk_fd(disk), &partition, BLKPG_ADD_PARTITION) != 0)
-	error("ioctl BLKPG_ADD_PARTITION failed");
+	error_with_errno("ioctl BLKPG_ADD_PARTITION failed", errno);
 }
 
 
@@ -112,7 +113,7 @@ blkpg_resize_partition(disk_t* disk, int num, size_t start, size_t length)
     partition.length = length;
 
     if (blkpg_ioctl(disk_fd(disk), &partition, BLKPG_RESIZE_PARTITION) != 0)
-	error("ioctl BLKPG_RESIZE_PARTITION failed");
+	error_with_errno("ioctl BLKPG_RESIZE_PARTITION failed", errno);
 }
 
 
@@ -124,7 +125,7 @@ blkpg_remove_partition(disk_t* disk, int num)
     partition.pno = num;
 
     if (blkpg_ioctl(disk_fd(disk), &partition, BLKPG_DEL_PARTITION) != 0)
-	error("ioctl BLKPG_DEL_PARTITION failed");
+	error_with_errno("ioctl BLKPG_DEL_PARTITION failed", errno);
 }
 
 

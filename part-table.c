@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "part-table.h"
+
 
 int cmd_print(int argc, char** argv);
 int cmd_create_partition(int argc, char** argv);
@@ -46,8 +48,10 @@ find_cmd(const char* name)
 
 char* device = NULL;
 
-int discard = 0;
-int wipe_signatures = 0;
+bool berserker = false;
+
+bool discard = false;
+bool wipe_signatures = false;
 
 
 int
@@ -55,15 +59,16 @@ main(int argc, char** argv)
 {
     setlocale(LC_ALL, "");
 
-    enum { OPT_DISCARD = 128, OPT_WIPE_SIGNATURES };
+    enum { OPT_BERSERKER = 128, OPT_DISCARD, OPT_WIPE_SIGNATURES };
 
     static const struct option long_options[] = {
+	{ "berserker", no_argument, NULL, OPT_BERSERKER },
 	{ "discard", no_argument, NULL, OPT_DISCARD },
 	{ "wipe-signatures", no_argument, NULL, OPT_WIPE_SIGNATURES },
 	{ NULL, 0, NULL, 0}
     };
 
-    while (1)
+    while (true)
     {
 	int c = getopt_long(argc, argv, "+", long_options, NULL);
 
@@ -78,12 +83,16 @@ main(int argc, char** argv)
 
 	switch (c)
 	{
+	    case OPT_BERSERKER:
+		berserker = true;
+		break;
+
 	    case OPT_DISCARD:
-		discard = 1;
+		discard = true;
 		break;
 
 	    case OPT_WIPE_SIGNATURES:
-		wipe_signatures = 1;
+		wipe_signatures = true;
 		break;
 	}
     }

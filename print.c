@@ -9,7 +9,7 @@
 #include "part-table.h"
 
 
-static int json = 0;
+static bool json = false;
 
 
 static int
@@ -46,7 +46,7 @@ cmd_print(int argc, char** argv)
 	{ NULL, 0, NULL, 0}
     };
 
-    while (1)
+    while (true)
     {
 	int c = getopt_long(argc, argv, "+j", long_options, NULL);
 	if (c < 0)
@@ -56,7 +56,7 @@ cmd_print(int argc, char** argv)
 	{
 	    case 'j':
 	    {
-		json = 1;
+		json = true;
 	    }
 	    break;
 	}

@@ -1,7 +1,12 @@
 
 
+#include <stdbool.h>
+
+
 extern char* device;
 
-extern int discard;
-extern int wipe_signatures;
+extern bool berserker;
+
+extern bool discard;
+extern bool wipe_signatures;
 

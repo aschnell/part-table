@@ -15,10 +15,10 @@ void
 disk_free(disk_t* disk);
 
 void*
-disk_read(const disk_t* disk, uint64_t sector, unsigned cnt);
+disk_read_sectors(const disk_t* disk, uint64_t sector, unsigned cnt);
 
 void
-disk_write(const disk_t* disk, uint64_t sector, unsigned cnt, const void* buffer);
+disk_write_sectors(const disk_t* disk, uint64_t sector, unsigned cnt, const void* buffer);
 
 int
 disk_fd(const disk_t* disk);

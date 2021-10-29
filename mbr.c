@@ -8,7 +8,7 @@
 #include "utils.h"
 
 
-static const uint16_t mbr_signature = 0xaa55;
+const uint16_t mbr_signature = 0xaa55;
 
 
 const uint8_t mbr_efi_system_type_id = 0xef;
@@ -21,58 +21,6 @@ const uint8_t mbr_linux_native_type_id = 0x83;
 const uint8_t mbr_linux_raid_type_id = 0xfd;
 const uint8_t mbr_linux_swap_type_id = 0x82;
 const uint8_t mbr_prep_type_id = 0x41;
-
-
-typedef struct
-{
-    uint8_t head;
-    uint8_t sector;
-    uint8_t cylinder;
-} __attribute__ ((packed)) raw_chs_t;
-
-_Static_assert(sizeof(raw_chs_t) == 3, "haha");
-
-
-typedef struct
-{
-    uint8_t boot;
-    raw_chs_t first_chs;
-    uint8_t type_id;
-    raw_chs_t last_chs;
-    uint32_t first_lba;
-    uint32_t size_lba;
-} __attribute__ ((packed)) mbr_partition_entry_t;
-
-_Static_assert(sizeof(mbr_partition_entry_t) == 16, "haha");
-
-
-typedef struct
-{
-    uint8_t boot_code[440];
-    uint32_t id;
-    uint16_t null;
-    mbr_partition_entry_t partitions[4];
-    uint16_t signature;
-} __attribute__ ((packed)) mbr_mbr_t;
-
-_Static_assert(sizeof(mbr_mbr_t) == 512, "haha");
-
-
-typedef struct
-{
-    uint8_t unused1[446];
-    mbr_partition_entry_t partitions[2];
-    uint8_t unused2[32];
-    uint16_t signature;
-} __attribute__ ((packed)) mbr_ebr_t;
-
-_Static_assert(sizeof(mbr_ebr_t) == 512, "haha");
-
-
-struct mbr_s
-{
-    mbr_mbr_t* mbr;
-};
 
 
 unsigned
@@ -154,11 +102,11 @@ mbr_read(disk_t* disk)
     if (!mbr)
 	error("malloc failed");
 
-    mbr->mbr = (mbr_mbr_t*) disk_read(disk, 0, 1);
+    mbr->mbr = (mbr_mbr_t*) disk_read_sectors(disk, 0, 1);
 
     printf("signature: 0x%04x\n", le16toh(mbr->mbr->signature));
 
-    if (le32toh(mbr->mbr->signature) != mbr_signature)
+    if (le16toh(mbr->mbr->signature) != mbr_signature)
 	error("wrong mbr signature");
 
     for (unsigned int num = 1; num <= 4; ++num)
@@ -173,7 +121,7 @@ mbr_read(disk_t* disk)
 
 	for (unsigned int l = 5; ; ++l)
 	{
-	    mbr_ebr_t* ebr = disk_read(disk, offset2, 1);
+	    mbr_ebr_t* ebr = disk_read_sectors(disk, offset2, 1);
 
 	    if (le32toh(ebr->signature) != mbr_signature)
 		error("wrong mbr ebr signature");
@@ -274,7 +222,7 @@ mbr_write(mbr_t* mbr, disk_t* disk)
 {
     printf("--- mbr write ---\n");
 
-    disk_write(disk, 0, 1, mbr->mbr);
+    disk_write_sectors(disk, 0, 1, mbr->mbr);
 }
 
 

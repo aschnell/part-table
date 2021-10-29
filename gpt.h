@@ -10,7 +10,10 @@ typedef struct gpt_s gpt_t;
 
 
 gpt_t*
-gpt_create(disk_t* disk);
+gpt_create(disk_t* disk, int partition_entries, int partition_entry_size);
+
+void
+gpt_set_guid(gpt_t* gpt, const uuid_t guid);
 
 gpt_t*
 gpt_read(disk_t* disk);
@@ -48,7 +51,7 @@ void
 gpt_set_type_guid(gpt_t* gpt, int num, const uuid_t type_guid);
 
 void
-gpt_set_guid(gpt_t* gpt, int num, const uuid_t guid);
+gpt_set_partition_guid(gpt_t* gpt, int num, const uuid_t guid);
 
 void
 gpt_set_attributes(gpt_t* gpt, int num, uint64_t attributes);

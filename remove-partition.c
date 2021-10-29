@@ -68,7 +68,7 @@ cmd_remove_partition(int argc, char** argv)
 	{ NULL, 0, NULL, 0}
     };
 
-    while (1)
+    while (true)
     {
 	int c = getopt_long(argc, argv, "+n:", long_options, NULL);
 	if (c < 0)

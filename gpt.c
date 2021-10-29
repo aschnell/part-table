@@ -9,10 +9,13 @@
 #include <json-c/json.h>
 
 #include "gpt.h"
+#include "mbr.h"
 #include "utils.h"
 
 
 static const uint64_t gpt_signature = 0x5452415020494645;  // reverse "EFI PART"
+
+static const uint32_t gpt_header_revision_v1_00 = 0x00010000;
 
 
 const uuid_t gpt_bios_boot_type_guid = { 0x21, 0x68, 0x61, 0x48, 0x64, 0x49, 0x6e, 0x6f,
@@ -55,9 +58,9 @@ typedef struct
     uint32_t partition_entries;
     uint32_t partition_entry_size;
     uint32_t partition_crc;
-} gpt_header_t;
+} __attribute__ ((packed)) gpt_header_t;
 
-_Static_assert(offsetof(gpt_header_t, partition_crc) == 88, "haha");
+_Static_assert(sizeof(gpt_header_t) == 92, "haha");
 
 
 typedef struct
@@ -75,6 +78,8 @@ _Static_assert(sizeof(gpt_partition_entry_t) == 128, "haha");
 
 struct gpt_s
 {
+    mbr_mbr_t* pmbr;
+
     gpt_header_t* header1;
     gpt_header_t* header2;
 
@@ -201,17 +206,56 @@ uuid_decode(const uuid_t guid)
 }
 
 
+mbr_mbr_t*
+gpt_create_pmbr(disk_t* disk)
+{
+    mbr_mbr_t* pmbr = (mbr_mbr_t*) malloc(disk_sector_size(disk));
+    if (!pmbr)
+	error("malloc failed");
+
+    memset(pmbr, 0, disk_sector_size(disk));
+
+    pmbr->partitions[0].type_id = mbr_gpt_type_id;
+
+    pmbr->partitions[0].first_chs.cylinder = 0;
+    pmbr->partitions[0].first_chs.head = 0;
+    pmbr->partitions[0].first_chs.sector = 2;
+
+    pmbr->partitions[0].last_chs.cylinder = 0xff;
+    pmbr->partitions[0].last_chs.head = 0xff;
+    pmbr->partitions[0].last_chs.sector = 0xff;
+
+    pmbr->partitions[0].first_lba = htole32(1);
+
+    if (disk_sectors(disk) - 1> 0xffffffff)
+	pmbr->partitions[0].size_lba = htole32(0xffffffff);
+    else
+	pmbr->partitions[0].size_lba = htole32(disk_sectors(disk) - 1);
+
+    pmbr->signature = htole16(mbr_signature);
+
+    return pmbr;
+}
+
+
 gpt_t*
-gpt_create(disk_t* disk)
+gpt_create(disk_t* disk, int partition_entries, int partition_entry_size)
 {
     gpt_t* gpt = malloc(sizeof(gpt_t));
     if (!gpt)
 	error("malloc failed");
 
-    gpt->header_size = 92;
+    gpt->header_size = sizeof(gpt_header_t);
 
-    gpt->partition_entries = 128;
-    gpt->partition_entry_size = 128;
+    gpt->partition_entries = partition_entries;
+    gpt->partition_entry_size = partition_entry_size;
+
+    size_t partition_size = gpt->partition_entries * gpt->partition_entry_size;
+    size_t partition_blocks = (partition_size + disk_sector_size(disk) - 1) / disk_sector_size(disk);
+
+    size_t sectors = disk_sectors(disk);
+
+    gpt->pmbr = gpt_create_pmbr(disk);
 
     gpt->header1 = (gpt_header_t*) malloc(disk_sector_size(disk));
     if (!gpt->header1)
@@ -220,10 +264,11 @@ gpt_create(disk_t* disk)
     memset(gpt->header1, 0, disk_sector_size(disk));
 
     gpt->header1->signature = htole64(gpt_signature);
+    gpt->header1->revision = htole32(gpt_header_revision_v1_00);
     gpt->header1->header_size = htole32(gpt->header_size);
 
-    gpt->header1->first_lba = htole64(34);
-    gpt->header1->last_lba = htole64(2097118);
+    gpt->header1->first_lba = htole64(2 + partition_blocks);
+    gpt->header1->last_lba = htole64(sectors - 2 - partition_blocks);
 
     gpt->header1->partition_entries = htole32(gpt->partition_entries);
     gpt->header1->partition_entry_size = htole32(gpt->partition_entry_size);
@@ -237,15 +282,11 @@ gpt_create(disk_t* disk)
 
     memcpy(gpt->header2, gpt->header1, disk_sector_size(disk));
 
-    gpt->header1->current_lba = htole64(1);
-    gpt->header1->backup_lba = htole64(2097151);
+    gpt->header1->current_lba = gpt->header2->backup_lba = htole64(1);
+    gpt->header1->backup_lba = gpt->header2->current_lba = htole64(sectors - 1);
+
     gpt->header1->partition_lba = htole64(2);
-
-    gpt->header2->current_lba = gpt->header1->backup_lba;
-    gpt->header2->backup_lba = gpt->header1->current_lba;
-    gpt->header2->partition_lba = htole64(2097119);
-
-    size_t partition_size = gpt->partition_entries * gpt->partition_entry_size;
+    gpt->header2->partition_lba = htole64(sectors - 1 - partition_blocks);
 
     gpt->partitions = (gpt_partition_entry_t*) malloc(partition_size);
     if (!gpt->partitions)
@@ -254,6 +295,16 @@ gpt_create(disk_t* disk)
     memset(gpt->partitions, 0, partition_size);
 
     return gpt;
+}
+
+
+void
+gpt_set_guid(gpt_t* gpt, const uuid_t guid)
+{
+    uuid_copy(gpt->header1->disk_guid, guid);
+    swap_uuid(gpt->header1->disk_guid);
+
+    uuid_copy(gpt->header2->disk_guid, gpt->header1->disk_guid);
 }
 
 
@@ -266,14 +317,18 @@ gpt_read(disk_t* disk)
     if (!gpt)
 	error("malloc failed");
 
-    gpt->header1 = (gpt_header_t*) disk_read(disk, 1, 1);
+    gpt->pmbr = (mbr_mbr_t*) disk_read_sectors(disk, 0, 1);
 
-    gpt->header2 = (gpt_header_t*) disk_read(disk, le64toh(gpt->header1->backup_lba), 1);
+    gpt->header1 = (gpt_header_t*) disk_read_sectors(disk, 1, 1);
 
-    printf("signature: 0x%08zx\n", le64toh(gpt->header1->signature));
+    gpt->header2 = (gpt_header_t*) disk_read_sectors(disk, le64toh(gpt->header1->backup_lba), 1);
+
+    printf("signature: 0x%016zx\n", le64toh(gpt->header1->signature));
 
     if (le64toh(gpt->header1->signature) != gpt_signature)
 	error("wrong gpt signature");
+
+    printf("revision: 0x%08x\n", le32toh(gpt->header1->revision));
 
     gpt->header_size = le32toh(gpt->header1->header_size);
 
@@ -283,7 +338,8 @@ gpt_read(disk_t* disk)
     size_t partition_size = gpt->partition_entries * gpt->partition_entry_size;
     size_t partition_blocks = (partition_size + disk_sector_size(disk) - 1) / disk_sector_size(disk);
 
-    gpt->partitions = (gpt_partition_entry_t*) disk_read(disk, le64toh(gpt->header1->partition_lba), partition_blocks);
+    gpt->partitions = (gpt_partition_entry_t*) disk_read_sectors(disk, le64toh(gpt->header1->partition_lba),
+								 partition_blocks);
 
     return gpt;
 }
@@ -564,11 +620,13 @@ gpt_write(gpt_t* gpt, disk_t* disk)
 
     size_t partition_blocks = (partition_size + disk_sector_size(disk) - 1) / disk_sector_size(disk);
 
-    disk_write(disk, le64toh(gpt->header1->current_lba), 1, gpt->header1);
-    disk_write(disk, le64toh(gpt->header1->partition_lba), partition_blocks, gpt->partitions);
+    disk_write_sectors(disk, 0, 1, gpt->pmbr);
 
-    disk_write(disk, le64toh(gpt->header2->current_lba), 1, gpt->header2);
-    disk_write(disk, le64toh(gpt->header2->partition_lba), partition_blocks, gpt->partitions);
+    disk_write_sectors(disk, le64toh(gpt->header1->current_lba), 1, gpt->header1);
+    disk_write_sectors(disk, le64toh(gpt->header1->partition_lba), partition_blocks, gpt->partitions);
+
+    disk_write_sectors(disk, le64toh(gpt->header2->current_lba), 1, gpt->header2);
+    disk_write_sectors(disk, le64toh(gpt->header2->partition_lba), partition_blocks, gpt->partitions);
 }
 
 
@@ -664,7 +722,7 @@ gpt_set_type_guid(gpt_t* gpt, int num, const uuid_t type_guid)
 
 
 void
-gpt_set_guid(gpt_t* gpt, int num, const uuid_t guid)
+gpt_set_partition_guid(gpt_t* gpt, int num, const uuid_t guid)
 {
     gpt_partition_entry_t* partition = gpt_partition(gpt, num);
 

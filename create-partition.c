@@ -26,9 +26,9 @@ static char* name = NULL;
 static int
 doit()
 {
-    disk_t* disk = disk_new(device, O_RDWR);
+    disk_t* disk = disk_new(device, O_RDWR, fallback_sector_size);
 
-    size_t sector_size = disk_sector_size(disk);
+    uint32_t sector_size = disk_sector_size(disk);
 
 #if 0
 
@@ -41,8 +41,6 @@ doit()
 
     if (wipe_signatures)
 	linux_wipe_signatures(disk, start * sector_size, size * sector_size);
-
-    linux_create_partition(disk, number, start * sector_size, size * sector_size);
 
     mbr_write(mbr, disk);
 
@@ -60,8 +58,6 @@ doit()
     if (wipe_signatures)
 	linux_wipe_signatures(disk, start * sector_size, size * sector_size);
 
-    linux_create_partition(disk, number, start * sector_size, size * sector_size);
-
     if (!uuid_is_null(type_guid))
 	gpt_set_type_guid(gpt, number, type_guid);
 
@@ -74,11 +70,19 @@ doit()
     if (name)
 	gpt_set_name(gpt, number, name);
 
+    // First write the GPT, then inform the kernel about the partition. Otherwise, if
+    // writing the GPT fails the user would see and might use the block device of the
+    // partition. But after reboot the block device disappears with potential data loss.
+
     gpt_write(gpt, disk);
 
     gpt_free(gpt);
 
 #endif
+
+    linux_create_partition(disk, number, start * sector_size, size * sector_size);
+
+    // TODO if linux_create_partition fails use linux_verify_partition?
 
     disk_free(disk);
 

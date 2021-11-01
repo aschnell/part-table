@@ -15,7 +15,7 @@ static bool json = false;
 static int
 doit()
 {
-    disk_t* disk = disk_new(device, O_RDONLY);
+    disk_t* disk = disk_new(device, O_RDONLY, fallback_sector_size);
 
     mbr_t* mbr = mbr_read(disk);
 

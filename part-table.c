@@ -53,18 +53,21 @@ bool berserker = false;
 bool discard = false;
 bool wipe_signatures = false;
 
+uint32_t fallback_sector_size = 512;
+
 
 int
 main(int argc, char** argv)
 {
     setlocale(LC_ALL, "");
 
-    enum { OPT_BERSERKER = 128, OPT_DISCARD, OPT_WIPE_SIGNATURES };
+    enum { OPT_BERSERKER = 128, OPT_DISCARD, OPT_WIPE_SIGNATURES, OPT_SECTOR_SIZE };
 
     static const struct option long_options[] = {
 	{ "berserker", no_argument, NULL, OPT_BERSERKER },
 	{ "discard", no_argument, NULL, OPT_DISCARD },
 	{ "wipe-signatures", no_argument, NULL, OPT_WIPE_SIGNATURES },
+	{ "sector-size", required_argument, NULL, OPT_SECTOR_SIZE },
 	{ NULL, 0, NULL, 0}
     };
 
@@ -93,6 +96,10 @@ main(int argc, char** argv)
 
 	    case OPT_WIPE_SIGNATURES:
 		wipe_signatures = true;
+		break;
+
+	    case OPT_SECTOR_SIZE:
+		fallback_sector_size = strtol(optarg, NULL, 0);
 		break;
 	}
     }

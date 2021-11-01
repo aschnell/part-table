@@ -20,7 +20,7 @@ static uuid_t guid;
 static int
 doit()
 {
-    disk_t* disk = disk_new(device, O_RDWR);
+    disk_t* disk = disk_new(device, O_RDWR, fallback_sector_size);
 
 #if 0
 

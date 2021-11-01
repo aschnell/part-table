@@ -1,9 +1,13 @@
 
 
+#define _GNU_SOURCE
+
+
 #include <string.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <ctype.h>
 #include <libdevmapper.h>
 #include <linux/blkpg.h>
 #include <linux/fs.h>
@@ -17,12 +21,16 @@
 enum Tech { TECH_NONE, TECH_BLKPG, TECH_DM };
 
 
+const uint32_t sysfs_sector_size = 512;
+const uint32_t dm_sector_size = 512;
+
+
 void
-linux_discard(disk_t* disk, size_t start, size_t length)
+linux_discard(disk_t* disk, uint64_t start, uint64_t size)
 {
     printf("--- linux-discard ---\n");
 
-    uint64_t range[2] = { start, length };
+    uint64_t range[2] = { start, size };
 
     if (ioctl(disk_fd(disk), BLKDISCARD, &range) != 0)
 	fprintf(stderr, "discard failed\n");
@@ -30,7 +38,7 @@ linux_discard(disk_t* disk, size_t start, size_t length)
 
 
 void
-linux_wipe_signatures(disk_t* disk, size_t start, size_t length)
+linux_wipe_signatures(disk_t* disk, uint64_t start, uint64_t size)
 {
     printf("--- linux-wipe-signatures ---\n");
 
@@ -38,7 +46,7 @@ linux_wipe_signatures(disk_t* disk, size_t start, size_t length)
     if (!pr)
 	error("blkid_new_probe failed");
 
-    if (blkid_probe_set_device(pr, disk_fd(disk), start, length) != 0)
+    if (blkid_probe_set_device(pr, disk_fd(disk), start, size) != 0)
 	error("blkid_probe_set_device failed");
 
     if (blkid_probe_set_sectorsize(pr, disk_sector_size(disk)) != 0)
@@ -90,13 +98,13 @@ blkpg_ioctl(int fd, struct blkpg_partition* partition, int op)
 
 
 static void
-blkpg_create_partition(disk_t* disk, int num, size_t start, size_t length)
+blkpg_create_partition(disk_t* disk, int num, uint64_t start, uint64_t size)
 {
     struct blkpg_partition partition;
     memset(&partition, 0, sizeof(partition));
     partition.pno = num;
     partition.start = start;
-    partition.length = length;
+    partition.length = size;
 
     if (blkpg_ioctl(disk_fd(disk), &partition, BLKPG_ADD_PARTITION) != 0)
 	error_with_errno("ioctl BLKPG_ADD_PARTITION failed", errno);
@@ -104,13 +112,13 @@ blkpg_create_partition(disk_t* disk, int num, size_t start, size_t length)
 
 
 static void
-blkpg_resize_partition(disk_t* disk, int num, size_t start, size_t length)
+blkpg_resize_partition(disk_t* disk, int num, uint64_t start, uint64_t size)
 {
     struct blkpg_partition partition;
     memset(&partition, 0, sizeof(partition));
     partition.pno = num;
     partition.start = start;
-    partition.length = length;
+    partition.length = size;
 
     if (blkpg_ioctl(disk_fd(disk), &partition, BLKPG_RESIZE_PARTITION) != 0)
 	error_with_errno("ioctl BLKPG_RESIZE_PARTITION failed", errno);
@@ -129,8 +137,72 @@ blkpg_remove_partition(disk_t* disk, int num)
 }
 
 
+
+static bool
+read_sysfs(const char* name, uint64_t* val)
+{
+    FILE* fp = fopen(name, "r");
+    if (!fp)
+    {
+	error("failed to read sysfs\n");
+	return false;
+    }
+
+    if (fscanf(fp, "%lu", val) != 1)
+    {
+	fclose(fp);
+	error("failed to parse sysfs\n");
+	return false;
+    }
+
+    fclose(fp);
+
+    return true;
+}
+
+
+static bool
+huhu_verify_partition(const disk_t* disk, int num, uint64_t start, uint64_t size)
+{
+    const char* path = disk_path(disk);
+
+    char* b = basename(path);
+
+    int l = strlen(b);
+
+    bool need_p = isdigit(b[l - 1]);
+
+    char* part_name = sformat("%s%s%d", b, need_p ? "p" : "", num);
+
+    char* sysfs1 = sformat("/sys/block/%s/%s/start", b, part_name);
+    char* sysfs2 = sformat("/sys/block/%s/%s/size", b, part_name);
+
+    printf("sysfs1: %s\n", sysfs1);
+    printf("sysfs2: %s\n", sysfs2);
+
+    uint64_t val1;
+    if (!read_sysfs(sysfs1, &val1))
+	error("failed to read start\n");
+
+    if (val1 * sysfs_sector_size != start)
+	error("start mismatch\n");
+
+    uint64_t val2;
+    if (!read_sysfs(sysfs2, &val2))
+	error("failed to read size\n");
+
+    if (val2 * sysfs_sector_size != size)
+	error("size mismatch\n");
+
+    free(sysfs2);
+    free(sysfs1);
+
+    return true;
+}
+
+
 static void
-dm_haha(disk_t* disk, const char** disk_name, const char** disk_uuid)
+dm_haha(const disk_t* disk, const char** disk_name, const char** disk_uuid)
 {
     struct dm_task *task = dm_task_create(DM_DEVICE_INFO);
     if (!task)
@@ -181,7 +253,7 @@ dm_task_run_and_wait(struct dm_task* task)
 
 
 static void
-dm_create_partition(disk_t* disk, int num, size_t start, size_t length)
+dm_create_partition(disk_t* disk, int num, uint64_t start, uint64_t size)
 {
     const char* disk_name = NULL;
     const char* disk_uuid = NULL;
@@ -200,8 +272,8 @@ dm_create_partition(disk_t* disk, int num, size_t start, size_t length)
     printf("part-uuid: %s\n", part_uuid);
     dm_task_set_uuid(task, part_uuid);
 
-    char* params = sformat("%d:%d %zd", disk_major(disk), disk_minor(disk), start / 512);
-    dm_task_add_target(task, 0, length / 512, "linear", params);
+    char* params = sformat("%u:%u %zu", disk_major(disk), disk_minor(disk), start / dm_sector_size);
+    dm_task_add_target(task, 0, size / dm_sector_size, "linear", params);
 
     dm_task_run_and_wait(task);
 
@@ -215,7 +287,7 @@ dm_create_partition(disk_t* disk, int num, size_t start, size_t length)
 
 
 static void
-dm_resize_partition(disk_t* disk, int num, size_t start, size_t length)
+dm_resize_partition(disk_t* disk, int num, uint64_t start, uint64_t size)
 {
     const char* disk_name = NULL;
 
@@ -229,8 +301,8 @@ dm_resize_partition(disk_t* disk, int num, size_t start, size_t length)
     printf("part-name: %s\n", part_name);
     dm_task_set_name(task, part_name);
 
-    char* params = sformat("%d:%d %zd", disk_major(disk), disk_minor(disk), start / 512);
-    dm_task_add_target(task, 0, length / 512, "linear", params);
+    char* params = sformat("%d:%d %zd", disk_major(disk), disk_minor(disk), start / dm_sector_size);
+    dm_task_add_target(task, 0, size / dm_sector_size, "linear", params);
 
     if (!dm_task_run(task))
 	error("dm_task_run failed");
@@ -279,8 +351,78 @@ dm_remove_partition(disk_t* disk, int num)
 }
 
 
+static bool
+dm_verify_partition(const disk_t* disk, int num, uint64_t start, uint64_t size)
+{
+    const char* disk_name = NULL;
+
+    dm_haha(disk, &disk_name, NULL);
+
+    struct dm_task* task = dm_task_create(DM_DEVICE_TABLE);
+    if (!task)
+	error("dm_task_create failed");
+
+    char* part_name = sformat("%s-part%d", disk_name, num);
+    printf("part-name: %s\n", part_name);
+    dm_task_set_name(task, part_name);
+
+    if (!dm_task_run(task))
+	error("dm_task_run failed");
+
+    char* target_type;
+    char* params;
+
+    uint64_t a, b;
+
+    void* next = dm_get_next_target(task, NULL, &a, &b, &target_type, &params);
+
+    printf("start and size: %zd %zd\n", a, b);
+    printf("target-type: %s\n", target_type);
+    printf("params: %s\n", params);
+
+    // In theory there could be several sequential linear targets instead of one. But we
+    // are not considering that case.
+
+    if (next != NULL)
+	error("more than one target");
+
+    if (strcmp(target_type, "linear") != 0)
+	error("target-type mismatch");
+
+    if (a != 0)
+	error("very strange\n");
+
+    if (size != b * dm_sector_size)
+	error("size mismatch\n");
+
+    unsigned int major, minor;
+    uint64_t c;
+
+    if (sscanf (params, "%d:%d %zu", &major, &minor, &c) != 3)
+	error("scaning table failed");
+
+    printf("major and minor: %d %d\n", major, minor);
+    printf("start: %zu\n", c);
+
+    if (disk_major(disk) != major)
+	error("major mismatch\n");
+
+    if (disk_minor(disk) != minor)
+	error("minor mismatch\n");
+
+    if (start != c * dm_sector_size)
+	error("start mismatch\n");
+
+    free(part_name);
+
+    dm_task_destroy(task);
+
+    return true;
+}
+
+
 static enum Tech
-linux_tech(disk_t* disk)
+linux_tech(const disk_t* disk)
 {
     if (!disk_is_blk_device(disk))
 	return TECH_NONE;
@@ -293,18 +435,18 @@ linux_tech(disk_t* disk)
 
 
 void
-linux_create_partition(disk_t* disk, int num, size_t start, size_t length)
+linux_create_partition(disk_t* disk, int num, uint64_t start, uint64_t size)
 {
     printf("--- linux-create-partition ---\n");
 
     switch (linux_tech(disk))
     {
 	case TECH_BLKPG:
-	    blkpg_create_partition(disk, num, start, length);
+	    blkpg_create_partition(disk, num, start, size);
 	    break;
 
 	case TECH_DM:
-	    dm_create_partition(disk, num, start, length);
+	    dm_create_partition(disk, num, start, size);
 	    break;
 
 	case TECH_NONE:
@@ -314,18 +456,18 @@ linux_create_partition(disk_t* disk, int num, size_t start, size_t length)
 
 
 void
-linux_resize_partition(disk_t* disk, int num, size_t start, size_t length)
+linux_resize_partition(disk_t* disk, int num, uint64_t start, uint64_t size)
 {
     printf("--- linux-resize-partition ---\n");
 
     switch (linux_tech(disk))
     {
 	case TECH_BLKPG:
-	    blkpg_resize_partition(disk, num, start, length);
+	    blkpg_resize_partition(disk, num, start, size);
 	    break;
 
 	case TECH_DM:
-	    dm_resize_partition(disk, num, start, length);
+	    dm_resize_partition(disk, num, start, size);
 	    break;
 
 	case TECH_NONE:
@@ -352,4 +494,26 @@ linux_remove_partition(disk_t* disk, int num)
 	case TECH_NONE:
 	    break;
     }
+}
+
+
+bool
+linux_verify_partition(const disk_t* disk, int num, uint64_t start, uint64_t size)
+{
+    printf("--- linux-verify-partition ---\n");
+
+    switch (linux_tech(disk))
+    {
+	case TECH_BLKPG:
+	    huhu_verify_partition(disk, num, start, size);
+	    return false;
+
+	case TECH_DM:
+	    return dm_verify_partition(disk, num, start, size);
+
+	case TECH_NONE:
+	    return false;
+    }
+
+    return false;
 }

@@ -18,17 +18,17 @@ static int number = 0;
 static int
 doit()
 {
-    disk_t* disk = disk_new(device, O_RDWR);
+    disk_t* disk = disk_new(device, O_RDWR, fallback_sector_size);
 
-    // size_t sector_size = disk_sector_size(disk);
+    // uint32_t sector_size = disk_sector_size(disk);
 
 #if 0
 
     mbr_t* mbr = mbr_read(disk);
 
-    mbr_remove_partition(mbr, number);
-
     linux_remove_partition(disk, number);
+
+    mbr_remove_partition(mbr, number);
 
     // linux_discard(disk, start * sector_size, size * sector_size);
     // linux_wipe_signatures(disk, start * sector_size, size * sector_size);
@@ -41,9 +41,9 @@ doit()
 
     gpt_t* gpt = gpt_read(disk);
 
-    gpt_remove_partition(gpt, number);
-
     linux_remove_partition(disk, number);
+
+    gpt_remove_partition(gpt, number);
 
     // linux_discard(disk, start * sector_size, size * sector_size);
     // linux_wipe_signatures(disk, start * sector_size, size * sector_size);

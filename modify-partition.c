@@ -25,9 +25,9 @@ static char* name = NULL;
 static int
 doit()
 {
-    disk_t* disk = disk_new(device, O_RDWR);
+    disk_t* disk = disk_new(device, O_RDWR, fallback_sector_size);
 
-    size_t sector_size = disk_sector_size(disk);
+    uint32_t sector_size = disk_sector_size(disk);
 
 #if 0
 

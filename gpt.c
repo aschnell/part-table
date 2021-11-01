@@ -11,6 +11,7 @@
 #include "gpt.h"
 #include "mbr.h"
 #include "utils.h"
+#include "linux.h"
 
 
 static const uint64_t gpt_signature = 0x5452415020494645;  // reverse "EFI PART"
@@ -313,6 +314,8 @@ gpt_read(disk_t* disk)
 {
     printf("--- gpt read ---\n");
 
+    printf("path: %s\n", disk_path(disk));
+
     gpt_t* gpt = malloc(sizeof(gpt_t));
     if (!gpt)
 	error("malloc failed");
@@ -340,6 +343,22 @@ gpt_read(disk_t* disk)
 
     gpt->partitions = (gpt_partition_entry_t*) disk_read_sectors(disk, le64toh(gpt->header1->partition_lba),
 								 partition_blocks);
+
+    for (unsigned int num = 1; num <= gpt->partition_entries; ++num)
+    {
+	const gpt_partition_entry_t* partition = gpt_const_partition(gpt, num);
+
+	if (uuid_is_null(partition->type_guid))
+	    continue;
+
+	printf("number: %d\n", num);
+
+	uint64_t start = le64toh(partition->first_lba);
+	uint64_t end = le64toh(partition->last_lba);
+	uint64_t size = end - start + 1;
+
+	linux_verify_partition(disk, num, start * disk_sector_size(disk), size * disk_sector_size(disk));
+    }
 
     return gpt;
 }
@@ -627,6 +646,8 @@ gpt_write(gpt_t* gpt, disk_t* disk)
 
     disk_write_sectors(disk, le64toh(gpt->header2->current_lba), 1, gpt->header2);
     disk_write_sectors(disk, le64toh(gpt->header2->partition_lba), partition_blocks, gpt->partitions);
+
+    disk_sync(disk);
 }
 
 

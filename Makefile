@@ -12,7 +12,7 @@ LIBPATH =
 
 CPPFLAGS = $(INCPATH)
 
-CFLAGS = -Wall -Wextra -Wformat -O2
+CFLAGS = -Wall -Wextra -Wformat -Werror=implicit-function-declaration -O2
 
 LDFLAGS = $(LIBPATH) -luuid -lblkid -ldevmapper -ljson-c
 

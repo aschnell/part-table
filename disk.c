@@ -21,22 +21,27 @@
 
 struct disk_s
 {
+    char* path;
     int fd;
-    size_t sectors;
+    uint64_t sectors;
     bool is_blk_device;
     dev_t major_minor;
-    unsigned int sector_size;
+    uint32_t sector_size;
 };
 
 
 disk_t*
-disk_new(const char* device, int flags)
+disk_new(const char* path, int flags, uint32_t sector_size)
 {
     disk_t* disk = malloc(sizeof(disk_t));
     if (!disk)
 	error("malloc failed");
 
-    disk->fd = open(device, flags | O_LARGEFILE | O_CLOEXEC);
+    disk->path = realpath(path, NULL);
+    if (!disk->path)
+	error("realpath failed");
+
+    disk->fd = open(disk->path, flags | O_LARGEFILE | O_CLOEXEC);
     if (disk->fd < 0)
 	error("open failed");
 
@@ -69,12 +74,12 @@ disk_new(const char* device, int flags)
 
 	disk->major_minor = 0;
 
-	disk->sector_size = 512;
+	disk->sector_size = sector_size;
 	disk->sectors = buf.st_size / disk->sector_size;
     }
 
-    printf("sectors: %zd\n", disk->sectors);
-    printf("sector-size: %d\n", disk->sector_size);
+    printf("sectors: %lu\n", disk->sectors);
+    printf("sector-size: %u\n", disk->sector_size);
 
     return disk;
 }
@@ -84,6 +89,7 @@ void
 disk_free(disk_t* disk)
 {
     close(disk->fd);
+    free(disk->path);
     free(disk);
 }
 
@@ -121,6 +127,26 @@ disk_write_sectors(const disk_t* disk, uint64_t sector, unsigned cnt, const void
 }
 
 
+void
+disk_sync(disk_t* disk)
+{
+    // TODO: We want the partition table to be written to disk. But fsync might be slow
+    // and sync also all file systems.
+    // or ioctl(fd, BLKFLSBUF)?
+
+    fsync(disk->fd);
+
+    sync();
+}
+
+
+const char*
+disk_path(const disk_t* disk)
+{
+    return disk->path;
+}
+
+
 int
 disk_fd(const disk_t* disk)
 {
@@ -128,14 +154,14 @@ disk_fd(const disk_t* disk)
 }
 
 
-size_t
+uint64_t
 disk_sectors(const disk_t* disk)
 {
     return disk->sectors;
 }
 
 
-size_t
+uint32_t
 disk_sector_size(const disk_t* disk)
 {
     return disk->sector_size;

@@ -399,7 +399,7 @@ dm_verify_partition(const disk_t* disk, int num, uint64_t start, uint64_t size)
     uint64_t c;
 
     if (sscanf (params, "%d:%d %zu", &major, &minor, &c) != 3)
-	error("scaning table failed");
+	error("scanning table failed");
 
     printf("major and minor: %d %d\n", major, minor);
     printf("start: %zu\n", c);

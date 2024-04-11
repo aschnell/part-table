@@ -21,6 +21,7 @@ const uint8_t mbr_linux_native_type_id = 0x83;
 const uint8_t mbr_linux_raid_type_id = 0xfd;
 const uint8_t mbr_linux_swap_type_id = 0x82;
 const uint8_t mbr_prep_type_id = 0x41;
+const uint8_t mbr_unused_type_id = 0x00;
 
 
 unsigned
@@ -113,7 +114,8 @@ mbr_read(disk_t* disk)
     {
 	const mbr_partition_entry_t* partition = mbr_partition(mbr, num);
 
-	if (partition->type_id != mbr_extended_lba_type_id)
+	if (partition->type_id != mbr_extended_lba_type_id &&
+	    partition->type_id != mbr_extended_type_id)
 	    continue;
 
 	const uint64_t offset1 = partition->first_lba;
@@ -162,7 +164,8 @@ mbr_read(disk_t* disk)
 	    const mbr_partition_entry_t* partition2 = &ebr->partitions[1];
 
 	    printf("  second type-id: 0x%02x\n", partition2->type_id);
-	    if (partition2->type_id != mbr_extended_type_id)
+	    if (partition2->type_id != mbr_extended_lba_type_id &&
+		partition2->type_id != mbr_extended_type_id)
 		break;
 
 	    offset2 = offset1 + le32toh(partition2->first_lba);

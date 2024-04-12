@@ -121,6 +121,8 @@ mbr_read(disk_t* disk)
 	const uint64_t offset1 = partition->first_lba;
 	uint64_t offset2 = offset1;
 
+	uint64_t tmp1 = 0;
+
 	for (unsigned int l = 5; ; ++l)
 	{
 	    mbr_ebr_t* ebr = disk_read_sectors(disk, offset2, 1);
@@ -149,6 +151,15 @@ mbr_read(disk_t* disk)
 		printf("  start-lba: %zu\n", start);
 		printf("  end-lba: %zu\n", start + size - 1);
 		printf("  size-lba: %zu\n", size);
+
+		if (l > 5)
+		{
+		    uint64_t tmp2 = start + size - offset2;
+
+		    if (tmp1 != tmp2)
+			printf("warning: number of sectors in ebr for partition %d wrong, %ld != %ld\n",
+			       l, tmp1, tmp2);
+		}
 	    }
 
 	    {
@@ -166,9 +177,16 @@ mbr_read(disk_t* disk)
 	    printf("  second type-id: 0x%02x\n", partition2->type_id);
 	    if (partition2->type_id != mbr_extended_lba_type_id &&
 		partition2->type_id != mbr_extended_type_id)
+	    {
+		if (le32toh(partition2->first_lba) != 0 || le32toh(partition2->size_lba) != 0)
+		    printf("values for non-existing logical partition not null\n");
+
 		break;
+	    }
 
 	    offset2 = offset1 + le32toh(partition2->first_lba);
+
+	    tmp1 = le32toh(partition2->size_lba);
 	}
     }
 

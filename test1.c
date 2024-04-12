@@ -76,7 +76,7 @@ main()
 
     ebr1.partitions[1].type_id = mbr_extended_lba_type_id;
     ebr1.partitions[1].first_lba = offset2;
-    ebr1.partitions[1].size_lba = 2 * 2048 - offset1;
+    ebr1.partitions[1].size_lba = 3 * 2048 - 1 - offset1;
     ebr1.partitions[1].first_chs = huhu(1);
     ebr1.partitions[1].last_chs = huhu(2);
 
@@ -98,7 +98,7 @@ main()
 
     ebr2.partitions[1].type_id = mbr_extended_lba_type_id;
     ebr2.partitions[1].first_lba = offset3;
-    ebr2.partitions[1].size_lba = 3 * 2048 - offset2;
+    ebr2.partitions[1].size_lba = 4 * 2048 - 1 - offset2;
     ebr2.partitions[1].first_chs = huhu(1);
     ebr2.partitions[1].last_chs = huhu(2);
 
@@ -119,10 +119,6 @@ main()
     // no further EBR
 
     ebr3.partitions[1].type_id = mbr_unused_type_id;
-    ebr3.partitions[1].first_lba = 0;
-    ebr3.partitions[1].size_lba = 0;
-    ebr3.partitions[1].first_chs = huhu(0);
-    ebr3.partitions[1].last_chs = huhu(0);
 
     // write MBR and EBRs
 
